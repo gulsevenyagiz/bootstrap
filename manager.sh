@@ -66,12 +66,17 @@ function fetch {
 }
 
 
-function temp_folder {
-    log "[i] Checking access to ${TMP_LOCATION}." 'g'
-    if [[ ! -d "${TMP_LOCATION}" ]]
+function directory_check {
+    log "[i] Checking access to ${1}." 'g'
+    if [[ ! -d "${1}" ]]
     then
-        log "[!!!] Cannot access tmp location, this is an unsuported state. Please ensure ${TMP_LOCATION} is readable/writable. aborting..." 'r'
-        exit 1
+        if [[ "${2}" = 'force_failure' ]]
+        then
+            log "[!!!] Cannot access ${1}, this is an unsuported state. Please ensure ${1} is readable/writable. Aborting..." 'r'
+            exit 1
+        fi
+        log "[w] Cannot access ${1}" 'w'
+        return 1
     fi
 }
 
@@ -99,10 +104,14 @@ function usage {
 
 # Intall Function.
 function install_teamspeak {
-    temp_folder
+    directory_check "${TMP_LOCATION}" 'force_failure'
+    directory_check "${OPT_LOCATION}" 'force_failure'
+
     fetch "${TEAMSPEAK_URL}" 'teamspeak.tar'
 
-    if [[ -d "${OPT_LOCATION}teamspeak3-server_linux_amd64" ]]
+    directory_check "${OPT_LOCATION}teamspeak3-server_linux_amd64"
+
+    if [[ "${?}" -eq 0 ]]
     then
         log '[w] Previous version of teamspeak found, removing.' 'w'
         rm -rf "${OPT_LOCATION}/teamspeak3-server_linux_amd64"
@@ -122,25 +131,69 @@ function install_teamspeak {
         passwd -l teamspeak > /dev/dell
     fi
 
+    log '[i] Adding necessary ports to firewalld.' 'g'
+
+
+    firewall-cmd --permanent --zone=public --add-port=9987/udp >/dev/null 2>&1
+    firewall-cmd --permanent --zone=public --add-port=30033/tcp >/dev/null 2>&1
+    systemctl restart firewalld
+
+    # Check if Firewalld restat was successfull.
+    if [[ "${?}" -ne 0 ]]
+    then
+        log '[!!!] Failed to bring firewalld up, please manually check firewalld and restart the script.' 'r'
+        exit 1
+    fi
+   
 
 
    # Check if a previos version of Teamspeak was installed
-   if [[ -f '/var/local/teamspeak3/ts3server.sqlitedb' ]]
-   then
+    if [[ -f '/var/local/teamspeak3/ts3server.sqlitedb' ]]
+    then
         log '[w] A previous version of Teamspeak was found, not overwriting the database.' 'w'
         ln -s "${TEAMSPEAK_STATE}"ts3server.ini          "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server.ini
-        ln -s "${TEAMSPEAK_STATE}"files                  "${OPT_LOCATION}"teamspeak3-server_linux_amd64/files
-        ln -s "${TEAMSPEAK_STATE}"logs                   "${OPT_LOCATION}"teamspeak3-server_linux_amd64/logs
-        ln -s "${TEAMSPEAK_STATE}"query_ip_allowlist.txt "${OPT_LOCATION}"teamspeak3-server_linux_amd64/query_ip_allowlist.txt
-        ln -s "${TEAMSPEAK_STATE}"query_ip_denylist.txt  "${OPT_LOCATION}"teamspeak3-server_linux_amd64/query_ip_denylist.txt
         ln -s "${TEAMSPEAK_STATE}"ts3server.sqlitedb     "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server.sqlitedb
         #ln -s "${TEAMSPEAK_STATE}"ts3server.pid     "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server.pid
-        log "[i] Setting permissions on "${OPT_LOCATION}"teamspeak3-server_linux_amd64 " 'g'
+        log "[i] Setting permissions on ${OPT_LOCATION}teamspeak3-server_linux_amd64 " 'g'
         chown -R teamspeak:teamspeak "${OPT_LOCATION}"teamspeak3-server_linux_amd64
         chmod -R 700 "${OPT_LOCATION}"teamspeak3-server_linux_amd64
+        log "[i] Setting permissions on ${TEAMSPEAK_STATE}" 'g'
+        chown -R teamspeak:teamspeak "${TEAMSPEAK_STATE}"
+        chmod -R 777 "${TEAMSPEAK_STATE}"
+
+
+    
+    else
+        log '[i] Starting Teampseak to create configuration and database.' 'g'
+        chown -R teamspeak:teamspeak "${OPT_LOCATION}"teamspeak3-server_linux_amd64/
+        sudo -u teamspeak "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server_startscript.sh start createinifile=1 license_accepted=1 > /dev/null
+        sleep 60
+        log '[i] Stopping server.' 'g'
+        sudo -u teamspeak "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server_startscript.sh stop > /dev/null
+       
+        directory_check "${TEAMSPEAK_STATE}"
+         
+        if [ "${?}" -ne 0  ] 
+        then
+            log "[w] Creating ${TEAMSPEAK_STATE}." 'w'
+            mkdir -p "${TEAMSPEAK_STATE}"
+        fi
+        log "[i] Moving State tiles to ${TEAMSPEAK_STATE}" 'g'
+        mv "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server.ini "${TEAMSPEAK_STATE}"
+        mv "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server.sqlitedb  "${TEAMSPEAK_STATE}"
+
+        log "[i] Setting permissions on ${TEAMSPEAK_STATE}" 'g'
+        chown -R teamspeak:teamspeak "${TEAMSPEAK_STATE}"
+        chmod -R 777 "${TEAMSPEAK_STATE}"
+
+        log "[i] Creatings soft-links to  ${OPT_LOCATION}\teamspeak3-server_linux_amd64" 'g'
+        ln -s "${TEAMSPEAK_STATE}"ts3server.ini          "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server.ini
+        ln -s "${TEAMSPEAK_STATE}"ts3server.sqlitedb     "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server.sqlitedb
+    fi
+
         if [[ ! -f '/etc/systemd/system/teamspeak.service' ]]
         then
-            log '[w] A service file for Teamspeak does not exsist, creating...' 'g'
+            log '[i] A service file for Teamspeak does not exsist, creating...' 'g'
 
             cat > /etc/systemd/system/teamspeak.service << EOF
 [Unit]
@@ -148,12 +201,12 @@ Description=TeamSpeak Server Service
 After=network.target
 
 [Service]
-Type=simple
+Type=forking
 WorkingDirectory=/opt/teamspeak3-server_linux_amd64/
 ExecStart=/opt/teamspeak3-server_linux_amd64/ts3server_startscript.sh start inifile=ts3server.ini
 ExecStop=/opt/teamspeak3-server_linux_amd64/ts3server_startscript.sh stop
-User=teamspeak
-Group=teamspeak
+User=root
+Group=root
 StandardOutput=syslog
 StandardError=syslog
 SyslogIdentifier=teamspeak
@@ -163,12 +216,10 @@ WantedBy=multi-user.target
 EOF
 
         else
-            log '[i] A service file for Teamspeak already exsists, not creating again.' 'w'
+            log '[w] A service file for Teamspeak already exsists, not creating again.' 'w'
         fi
-        
 
-   fi
-
+systemctl start teamspeak
 
 
 
