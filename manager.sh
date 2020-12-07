@@ -244,7 +244,8 @@ EOF
         fi
 
     # Fix for the bug reported here. https://forum.teamspeak.com/threads/93623-Instance-check-error-failed-to-register-local-accounting-service-on-Linux/page8
-    if [[ "${?}" -eq 0  ]] 
+    
+    if [[ -f '/dev/shm/7gbhujb54g8z9hu43jre8' ]]
     then
         rm -f /dev/shm/7gbhujb54g8z9hu43jre8
     fi
