@@ -4,19 +4,26 @@
 # management.sh
 # version 1.0 - Yagiz Gulseven
 # This script is ShellCheck compliant.
+#  
 #
 #
 #
+
+
+readonly TMP_LOCATION='/var/tmp'
+readonly OPT_LOCATION='/opt'
+
 #
+# TEAMSPEAK 3 PATHS
+#
+readonly TEAMSPEAK_URL='https://files.teamspeak-services.com/releases/server/3.13.2/teamspeak3-server_linux_amd64-3.13.2.tar.bz2'
+readonly TEAMSPEAK_STATE='/var/local/teamspeak3/'
+readonly TEAMSPEAK_FOLDER_NAME='/teamspeak3-server_linux_amd64/'
+
+
 #
 # VERIFY ALL BINARIES USED
 #
-
-TMP_LOCATION='/var/tmp/'
-OPT_LOCATION='/opt/'
-
-TEAMSPEAK_URL='https://files.teamspeak-services.com/releases/server/3.13.2/teamspeak3-server_linux_amd64-3.13.2.tar.bz2'
-TEAMSPEAK_STATE='/var/local/teamspeak3/'
 
 readonly CURL="$(command -v curl)"
 if [[ -z "${CURL}" ]]
@@ -35,7 +42,7 @@ fi
 
 # Check if SE-LINUX is enabled
 selinuxenabled
-if [ $? -eq 0 ]
+if [ "${?}" -eq 0 ]
 then 
     echo "I see that SE-Linux is enabled. This is not(yet) supported. Please deactiavate SE-Linux and run the script again."
     exit 1
@@ -66,11 +73,11 @@ function log {
 
 
 function fetch {
-    log "[i] Downloading ${1} to ${TMP_LOCATION}${2}." 'g'
-    "${CURL}" -s "${1}" -o "${TMP_LOCATION}${2}"
+    log "[i] Downloading ${1} to ${TMP_LOCATION}/${2}." 'g'
+    "${CURL}" -s "${1}" -o "${TMP_LOCATION}/${2}"
     if [[ "${?}" -ne 0 ]]
         then
-        log "[!!!] Error occured while downlading ${1} to ${TMP_LOCATION}${2}, aborting..." 'r'
+        log "[!!!] Error occured while downlading ${1} to ${TMP_LOCATION}/${2}, aborting..." 'r'
         exit 1
     fi
 }
@@ -105,11 +112,13 @@ function unzip_move {
 # Explain usage.
 function usage {
     echo 'No valid option was provided, please provide one of the following functions.'
-    echo "Usage: ${0} [-v] enables verbosity "
-    echo "${0} teamspeak3            --- Installs Teamspeak3 on the server."
-    echo "${0} nagios                --- Register the server to nagios server."
+    echo "${0} fail2ban              --- Installs fail2ban hunter on the server."
     echo "${0} harden                --- Does some common sense hardening on the server."
-    echo "${0} rootkit-hunter        --- Install rootkit hunter on the server."
+    echo "${0} nagios                --- Register the server to nagios server."
+    echo "${0} postfix               --- Installs and configures a SMTP relay on the server."
+    echo "${0} rootkit               --- Installs rootkit hunter on the server."
+    echo "${0} teamspeak3            --- Installs Teamspeak3 on the server."
+
 }
 
 
@@ -131,15 +140,15 @@ function install_teamspeak {
     fetch "${TEAMSPEAK_URL}" 'teamspeak.tar'
 
     # Check if Teamspeak is installed in the default location
-    directory_check "${OPT_LOCATION}teamspeak3-server_linux_amd64"
+    directory_check "${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}"
 
     if [[ "${?}" -eq 0 ]]
         then
         log '[w] Previous version of teamspeak found, removing.' 'w'
-        rm -rf "${OPT_LOCATION}/teamspeak3-server_linux_amd64"
+        rm -rf "${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}"
     fi
 
-    unzip_move "${TMP_LOCATION}teamspeak.tar" "${OPT_LOCATION}"
+    unzip_move "${TMP_LOCATION}/teamspeak.tar" "${OPT_LOCATION}"
 
     # Check if the teamspeak user exsists, if not create it.
    
@@ -172,26 +181,26 @@ function install_teamspeak {
     if [[ -f '/var/local/teamspeak3/ts3server.sqlitedb' ]]
         then
         log '[w] A previous version of Teamspeak was found, not overwriting the database.' 'w'
-        ln -s "${TEAMSPEAK_STATE}"ts3server.ini          "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server.ini
-        ln -s "${TEAMSPEAK_STATE}"ts3server.sqlitedb     "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server.sqlitedb
+        ln -s "${TEAMSPEAK_STATE}"ts3server.ini          "${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}"ts3server.ini
+        ln -s "${TEAMSPEAK_STATE}"ts3server.sqlitedb     "${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}"ts3server.sqlitedb
 
-        log "[i] Setting permissions on ${OPT_LOCATION}teamspeak3-server_linux_amd64 " 'g'
-        chown -R teamspeak:teamspeak "${OPT_LOCATION}"teamspeak3-server_linux_amd64
-        chmod 700 "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server_startscript.sh
+        log "[i] Setting permissions on ${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}" 'g'
+        chown -R teamspeak:teamspeak "${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}"
+        chmod 700 "${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}"ts3server_startscript.sh
 
         log "[i] Setting permissions on ${TEAMSPEAK_STATE}" 'g'
         chown -R teamspeak:teamspeak "${TEAMSPEAK_STATE}"
-        chmod -R 660 "${TEAMSPEAK_STATE}"/ts3server.ini
-        chmod -R 660 "${TEAMSPEAK_STATE}"/ts3server.sqlitedb    
+        chmod -R 660 "${TEAMSPEAK_STATE}"ts3server.ini
+        chmod -R 660 "${TEAMSPEAK_STATE}"ts3server.sqlitedb    
 
         else
         log '[i] Starting Teampseak to create configuration and database.' 'g'
-        chown -R teamspeak:teamspeak "${OPT_LOCATION}"teamspeak3-server_linux_amd64/
-        chmod 700 "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server_startscript.sh
-        sudo -u teamspeak "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server_startscript.sh start createinifile=1 license_accepted=1 > /dev/null
+        chown -R teamspeak:teamspeak "${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}"
+        chmod 700 "${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}"ts3server_startscript.sh
+        sudo -u teamspeak "${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}"ts3server_startscript.sh start createinifile=1 license_accepted=1 > /dev/null
         sleep 10
         log '[i] Stopping server.' 'g'
-        sudo -u teamspeak "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server_startscript.sh stop > /dev/null
+        sudo -u teamspeak "${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}"ts3server_startscript.sh stop > /dev/null
 
         # Check if /var/local/teamspeak3 exsists. 
         directory_check "${TEAMSPEAK_STATE}" 
@@ -203,17 +212,18 @@ function install_teamspeak {
         fi
 
         log "[i] Moving State tiles to ${TEAMSPEAK_STATE}" 'g'
-        mv "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server.ini "${TEAMSPEAK_STATE}"
-        mv "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server.sqlitedb  "${TEAMSPEAK_STATE}"
+        mv "${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}"ts3server.ini "${TEAMSPEAK_STATE}"
+        mv "${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}"ts3server.sqlitedb  "${TEAMSPEAK_STATE}"
 
         log "[i] Setting permissions on ${TEAMSPEAK_STATE}" 'g'
         chown -R teamspeak:teamspeak "${TEAMSPEAK_STATE}"
-        chmod -R 660 "${TEAMSPEAK_STATE}"/ts3server.ini
-        chmod -R 660 "${TEAMSPEAK_STATE}"/ts3server.sqlitedb  
+        chmod -R 660 "${TEAMSPEAK_STATE}"ts3server.ini
+        chmod -R 660 "${TEAMSPEAK_STATE}"ts3server.sqlitedb  
 
-        log "[i] Creatings soft-links to  ${OPT_LOCATION}\teamspeak3-server_linux_amd64" 'g'
-        ln -s "${TEAMSPEAK_STATE}"ts3server.ini          "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server.ini
-        ln -s "${TEAMSPEAK_STATE}"ts3server.sqlitedb     "${OPT_LOCATION}"teamspeak3-server_linux_amd64/ts3server.sqlitedb
+        log "[i] Creatings soft-links to  ${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}" 'g'
+        ln -s "${TEAMSPEAK_STATE}"ts3server.ini          "${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}"ts3server.ini
+        ln -s "${TEAMSPEAK_STATE}"ts3server.sqlitedb     "${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}"ts3server.sqlitedb
+        chown -R teamspeak:teamspeak "${OPT_LOCATION}${TEAMSPEAK_FOLDER_NAME}"
     fi
 
     if [[ ! -f '/etc/systemd/system/teamspeak.service' ]]
@@ -253,11 +263,78 @@ EOF
     # Starting teamspeak
     log '[i] Starting Teamspeak' 'g'
     systemctl daemon-reload
+    systemctl enable teamspeak
     systemctl start teamspeak
 
+    # Sleep 10 seconds to see it started successfully.
+    sleep 10
+
+    systemctl is-active --quiet  teamspeak
+    if [[ "${?}" -eq 0 ]]
+        then
+        log '[i] Teamspeak was successfully started.' 'g'
+        else
+        log '[!!!] Teamspeak could not be started, exsiting..' 'r'
+
+    fi
+
+
+    log "[i] Removing Teamspeak zip from ${TMP_LOCATION}." 'g'
+    rm -r "${TMP_LOCATION}"/teamspeak.tar
 
 }
 
+function install_fail2_ban {
+    log '[i] Activating epel-release' 'g'
+    yum install -y epel-release > /dev/null
+    log '[i] Installing fail2ban' 'g'
+    yum install -y fail2ban > /dev/null
+
+    if [[ ! -f '/etc/fail2ban/jail.local' ]]
+        then
+        log '[i] A settings file for fail2ban does not exsist, creating...' 'g'
+        cat > //etc/fail2ban/jail.local << EOF
+[DEFAULT]
+# Ban IP/hosts for 24 hour ( 24h*3600s = 86400s):
+bantime = 86400
+ 
+# An ip address/host is banned if it has generated "maxretry" during the last "findtime" seconds.
+findtime = 86400
+maxretry = 3
+ 
+# "ignoreip" can be a list of IP addresses, CIDR masks or DNS hosts. Fail2ban
+# will not ban a host which matches an address in this list. Several addresses
+# can be defined using space (and/or comma) separator. For example, add your 
+# static IP address that you always use for login such as 103.1.2.3
+#ignoreip = 127.0.0.1/8 ::1 103.1.2.3
+ 
+# Call iptables to ban IP address
+banaction = iptables-multiport
+ 
+# Enable sshd protection
+[sshd]
+enabled = true
+
+EOF
+    fi
+    log '[i] Enabling Fail2ban' 'g'
+    systemctl daemon-reload
+    systemctl enable fail2ban > /dev/null
+    systemctl start fail2ban
+
+    systemctl is-active --quiet  fail2ban
+    if [[ "${?}" -eq 0 ]]
+        then
+        log '[i] Fail2ban was successfully started.' 'g'
+        else
+        log '[!!!] Fail2ban could not be started, exsiting..' 'r'
+
+    fi
+
+
+
+
+}
    
 
 
@@ -279,6 +356,10 @@ do
             ;;
         "rootkit-hunter")     set -- "$@" "-r" 
             ;;
+        "fail2ban")           set -- "$@" "-f" 
+            ;;
+        "postfix")            set -- "$@" "-p"
+            ;;
         *)                    set -- "$@" "$arg"
             usage
             ;;
@@ -286,8 +367,66 @@ do
     esac
 done
 
+function install_postfix {
+    # Check if postfix is already installed.
+    yum list --installed | grep postfix > /dev/null
 
-while getopts tnhr OPTIONS
+    if [[ "${?}" -ne 0 ]]
+        then
+        log '[i] Postfix is not installed, installing.' 'g'
+        yum install -y postfix > /dev/null 
+
+        # Fix interface.
+        log '[i] Fixing default Postfix interface settings.' 'g'
+        sed -i 's/inet_interfaces = localhost/inet_interfaces = 127.0.0.1/' /etc/postfix/main.cf
+        log '[i] Restarting Postfix.' 'g'
+        systemctl restart postfix
+        if [[ "${?}" -ne 0 ]]
+            then
+            log '[!!!] Postfix could not be started, something went wrong with the interface. Check systemctl logs, exiting..' 'r'
+            exit 1
+        fi   
+    fi
+
+
+
+    # Get credentials from the user
+    read -p 'Enter the SMTP endpont. Default - smtp.gmail.com : ' SMTP
+    SMTP="${SMTP:-smtp.gmail.com}"
+    read -p 'Enter the SMTP port. Default - 587 : ' SMTP_PORT
+    SMTP_PORT="${SMTP_PORT:-587}"
+    read -p 'Enter the email address. Example:my_email@my_host.com : '  EMAIL
+    read -p 'Enter the email token: '  TOKEN
+    
+    log '[i] Saving credentials to /etc/postfix/sasl_passwd.' 'g'
+    echo "${SMTP}":"${SMTP_PORT}" "${EMAIL}":"${TOKEN}" > /etc/postfix/sasl_passwd
+    log '[i] Creating Postfix DB file from /etc/postfix/sasl_passwd.' 'g'
+    postmap /etc/postfix/sasl_passwd
+    log '[i] Securing sasl_passwd and sasl_passwd.db files.' 'g'
+    chown root:root /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
+    chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
+
+    cat /etc/postfix/main.cf | grep -v '^#' | grep relayhost 
+    
+    if [[ "${?}" -ne 0 ]]
+        then
+        echo "relayhost = [${SMTP}]:${SMTP_PORT}" >> /etc/postfix/main.cf
+        else
+        CURRENT_VAR=$(cat /etc/postfix/main.cf | grep -v '^#' | grep relayhost )
+        FIXED_VAR=$(printf '%q\n' "$CURRENT_VAR")
+        echo ${FIXED_VAR}
+        sed  "s|${FIXED_VAR}|relayhost = [${SMTP}]:${SMTP_PORT}|" /etc/postfix/main.cf
+    fi
+    
+
+
+
+   
+
+}
+
+
+while getopts tnhrfp OPTIONS
 do
     case "${OPTIONS}" in
     t)
@@ -301,6 +440,12 @@ do
         ;;
     r)
         install_rootkit
+        ;;
+    f)
+        install_fail2_ban
+        ;;
+    p)
+        install_postfix
         ;;
     *)
         usage
