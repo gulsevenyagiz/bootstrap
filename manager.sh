@@ -263,7 +263,7 @@ EOF
     # Starting teamspeak
     log '[i] Starting Teamspeak' 'g'
     systemctl daemon-reload
-    systemctl enable teamspeak
+    systemctl enable teamspeak /dev/null
     systemctl start teamspeak
 
     # Sleep 10 seconds to see it started successfully.
@@ -317,7 +317,7 @@ enabled = true
 
 EOF
     fi
-    log '[i] Enabling Fail2ban' 'g'
+    log '[i] Starting Fail2ban' 'g'
     systemctl daemon-reload
     systemctl enable fail2ban > /dev/null
     systemctl start fail2ban
@@ -368,6 +368,14 @@ do
 done
 
 function install_postfix {
+    # Check if postfix is runnig
+    systemctl is-active --quiet  postfix
+    if [[ "${?}" -eq 0 ]]
+        then
+        log '[w] A postfix version is currently running, stopping.' 'w'
+        systemctl stop postfix
+    fi
+
     # Check if postfix is already installed.
     yum list --installed | grep postfix > /dev/null
 
@@ -388,36 +396,100 @@ function install_postfix {
         fi   
     fi
 
-
-
     # Get credentials from the user
     read -p 'Enter the SMTP endpont. Default - smtp.gmail.com : ' SMTP
-    SMTP="${SMTP:-smtp.gmail.com}"
+    local SMTP="${SMTP:-smtp.gmail.com}"
     read -p 'Enter the SMTP port. Default - 587 : ' SMTP_PORT
-    SMTP_PORT="${SMTP_PORT:-587}"
+    local SMTP_PORT="${SMTP_PORT:-587}"
     read -p 'Enter the email address. Example:my_email@my_host.com : '  EMAIL
     read -p 'Enter the email token: '  TOKEN
-    
+
+    # Save credentials to files.
     log '[i] Saving credentials to /etc/postfix/sasl_passwd.' 'g'
-    echo "${SMTP}":"${SMTP_PORT}" "${EMAIL}":"${TOKEN}" > /etc/postfix/sasl_passwd
+    echo "[${SMTP}"]:"${SMTP_PORT}" "${EMAIL}":"${TOKEN}" > /etc/postfix/sasl_passwd
     log '[i] Creating Postfix DB file from /etc/postfix/sasl_passwd.' 'g'
-    postmap /etc/postfix/sasl_passwd
+    postmap /etc/postfix/sasl_passwd >/dev/null 2>&1
     log '[i] Securing sasl_passwd and sasl_passwd.db files.' 'g'
     chown root:root /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
     chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
 
-    cat /etc/postfix/main.cf | grep -v '^#' | grep relayhost 
+    cat /etc/postfix/main.cf | grep -v '^#' | grep relayhost > /dev/null
+
+    log '[i] Setting up relay-host.' 'g'
     
     if [[ "${?}" -ne 0 ]]
         then
         echo "relayhost = [${SMTP}]:${SMTP_PORT}" >> /etc/postfix/main.cf
         else
-        CURRENT_VAR=$(cat /etc/postfix/main.cf | grep -v '^#' | grep relayhost )
-        FIXED_VAR=$(printf '%q\n' "$CURRENT_VAR")
-        echo ${FIXED_VAR}
-        sed  "s|${FIXED_VAR}|relayhost = [${SMTP}]:${SMTP_PORT}|" /etc/postfix/main.cf
+        log '[w] Previous configuration found, overwriting.' 'w'
+        local CURRENT_VAR="$(cat /etc/postfix/main.cf | grep -v '^#' | grep relayhost)"
+        local FIXED_VAR=$(printf '%q\n' "$CURRENT_VAR")
+        sed  -in "s|${FIXED_VAR}|relayhost = [${SMTP}]:${SMTP_PORT}|" /etc/postfix/main.cf 
     fi
+
+    log '[i] Removing /etc/pki/tls/certs/ca-bundle.crt entry.' 'g'
+
+    cat /etc/postfix/main.cf | grep -v '^#' | grep 'smtp_tls_CAfile = /etc/pki/tls/certs/ca-bundle.crt' > /dev/null
+
+    if [[ "${?}" -eq 0 ]]
+    then
+        sed  -i 's|smtp_tls_CAfile = /etc/pki/tls/certs/ca-bundle.crt||' /etc/postfix/main.cf 
+    fi
+
+    local SETTINGS="$(grep -v '^#' /etc/postfix/main.cf)"
+
+    echo ${SETTINGS} | grep 'smtp_use_tls = yes' > /dev/null
+    if [[ "${?}" -ne 0 ]]
+        then
+        echo 'smtp_use_tls = yes' >> /etc/postfix/main.cf
+        log '[i] Adding entry to /etc/postfix/main.cf' 'g'
+    fi
+
+    echo ${SETTINGS} | grep 'smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd' > /dev/null
+    if [[ "${?}" -ne 0 ]]
+        then
+        echo 'smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd' >> /etc/postfix/main.cf
+                log '[i] Adding entry to /etc/postfix/main.cf' 'g'
+    fi
+
+    echo ${SETTINGS} | grep 'smtp_tls_CAfile = /etc/ssl/certs/ca-bundle.crt' > /dev/null
+    if [[ "${?}" -ne 0 ]]
+        then
+        echo 'smtp_tls_CAfile = /etc/ssl/certs/ca-bundle.crt' >> /etc/postfix/main.cf 
+                log '[i] Adding entry to /etc/postfix/main.cf' 'g'
+    fi
+
+    echo ${SETTINGS} | grep 'smtp_sasl_security_options = noanonymous' > /dev/null
+    if [[ "${?}" -ne 0 ]]
+        then
+        echo 'smtp_sasl_security_options = noanonymous' >> /etc/postfix/main.cf
+                log '[i] Adding entry to /etc/postfix/main.cf' 'g'
+    fi
+
+    echo ${SETTINGS} | grep 'smtp_sasl_tls_security_options = noanonymous' > /dev/null
+    if [[ "${?}" -ne 0 ]]
+        then
+        echo 'smtp_sasl_tls_security_options = noanonymous' >> /etc/postfix/main.cf
+                log '[i] Adding entry to /etc/postfix/main.cf' 'g'
+    fi
+
     
+    # Starting Postfix
+    log '[i] Starting postfix' 'g'
+    systemctl daemon-reload
+    systemctl enable postfix > /dev/null
+    systemctl start postfix
+
+    # Sleep 10 seconds to see if it started successfully.
+    sleep 10
+
+    systemctl is-active --quiet  postfix
+    if [[ "${?}" -eq 0 ]]
+        then
+        log '[i] Postfix was successfully started.' 'g'
+        else
+        log '[!!!] Postfix could not be started, exsiting..' 'r'
+    fi
 
 
 
