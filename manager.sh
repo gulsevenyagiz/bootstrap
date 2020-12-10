@@ -409,25 +409,23 @@ function install_postfix {
     chown root:root "${POSTFIX_SETTINGS}"sasl_passwd "${POSTFIX_SETTINGS}"sasl_passwd.db
     chmod 600 "${POSTFIX_SETTINGS}"sasl_passwd "${POSTFIX_SETTINGS}"sasl_passwd.db
 
-
+    log '[i] Setting up relay-host.' 'g'
     # Set up relay host.
     cat "${POSTFIX_SETTINGS}"main.cf | grep -v '^#' | grep relayhost > /dev/null
-    log '[i] Setting up relay-host.' 'g'
     if [[ "${?}" -ne 0 ]]
         then
             echo "relayhost = [${SMTP}]:${SMTP_PORT}" >> "${POSTFIX_SETTINGS}"main.cf
         else
             log '[w] Previous configuration found, overwriting.' 'w'
-            local CURRENT_VAR="$(cat ${POSTFIX_SETTINGS}main.cf | grep -v '^#' | grep relayhost)"
-            local FIXED_VAR=$(printf '%q\n' "$CURRENT_VAR")
-            sed  -in "s|${FIXED_VAR}|relayhost = [${SMTP}]:${SMTP_PORT}|" "${POSTFIX_SETTINGS}"main.cf 
+            sed  -i "/relayhost =/d" "${POSTFIX_SETTINGS}"main.cf 
+            echo "relayhost = [${SMTP}]:${SMTP_PORT}" >> "${POSTFIX_SETTINGS}"main.cf
     fi
 
     # Check if the wrong cert is activated.
     cat "${POSTFIX_SETTINGS}"main.cf | grep -v '^#' | grep 'smtp_tls_CAfile = /etc/pki/tls/certs/ca-bundle.crt' > /dev/null
-    log '[i] Removing /etc/pki/tls/certs/ca-bundle.crt entry.' 'g'
     if [[ "${?}" -eq 0 ]]
     then
+        log '[i] Removing /etc/pki/tls/certs/ca-bundle.crt entry.' 'g'
         sed  -i 's|smtp_tls_CAfile = /etc/pki/tls/certs/ca-bundle.crt||' "${POSTFIX_SETTINGS}"main.cf 
     fi
 
@@ -466,6 +464,13 @@ function install_postfix {
     if [[ "${?}" -ne 0 ]]
         then
             echo 'smtp_sasl_tls_security_options = noanonymous' >> "${POSTFIX_SETTINGS}"main.cf
+           log "[i] Adding entry to  ${POSTFIX_SETTINGS}main.cf" 'g'
+    fi
+
+    echo ${SETTINGS} | grep 'smtp_sasl_auth_enable = yes' > /dev/null
+    if [[ "${?}" -ne 0 ]]
+        then
+            echo 'smtp_sasl_auth_enable = yes' >> "${POSTFIX_SETTINGS}"main.cf
            log "[i] Adding entry to  ${POSTFIX_SETTINGS}main.cf" 'g'
     fi
 
@@ -627,6 +632,4 @@ then
     usage
     exit 1
 fi
-
-
 
