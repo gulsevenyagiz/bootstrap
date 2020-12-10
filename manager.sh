@@ -501,6 +501,15 @@ function install_postfix {
 
 
 function install_logwatch {
+    # Check if postfix is  installed.
+    yum list --installed | grep postfix > /dev/null
+    if [[ "${?}" -ne 0 ]]
+        then
+            log '[!!!] Postfix is not installed, aborting.' 'r'
+            exit 1  
+    fi
+
+
     # Check if postfix is already installed.
     yum list --installed | grep logwatch > /dev/null
     if [[ "${?}" -ne 0 ]]
