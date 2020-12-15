@@ -1,0 +1,17 @@
+[Unit]
+Description=TeamSpeak Server Service
+After=network.target
+
+[Service]
+Type=forking
+WorkingDirectory=/opt/teamspeak3-server_linux_amd64/
+ExecStart=/opt/teamspeak3-server_linux_amd64/ts3server_startscript.sh start inifile=ts3server.ini
+ExecStop=/opt/teamspeak3-server_linux_amd64/ts3server_startscript.sh stop
+User=teamspeak
+Group=teamspeak
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=teamspeak
+
+[Install]
+WantedBy=multi-user.target
