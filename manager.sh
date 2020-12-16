@@ -34,6 +34,8 @@ export readonly FAIL2BAN_SETTINGS='/etc/fail2ban/'
 # Fail2ban Settings folder
 #
 export readonly LOGWATCH_SETTINGS='/etc/logwatch/'
+
+export readonly LYNIS_LOG='/var/log/lynis/'
 #
 # VERIFY ALL BINARIES USED
 #
@@ -116,13 +118,14 @@ function unzip_move {
 # Explain usage.
 function usage {
     echo  'No valid option was provided, please provide one of the following functions.'
-    echo  "${0} fail2ban              --- Installs fail2ban hunter on the server."
+    echo  "${0} fail2ban              --- Installs Fail2ban on the server."
     echo  "${0} harden                --- Does some common sense hardening on the server."
-    echo  "${0} logwatch              --- Installs logwatch on the server. Requires postfix."
-    echo  "${0} nagios                --- Register the server to nagios server."
+    echo  "${0} lynis                 --- Installs Lynis on the server. Requires Postfix."
+    echo  "${0} logwatch              --- Installs Logwatch on the server. Requires Postfix."
+    echo  "${0} nagios                --- Register the server to Nagios server."
     echo  "${0} postfix               --- Installs and configures a SMTP relay on the server."
-    echo  "${0} rootkit               --- Installs rootkit hunter on the server."
-    echo  "${0} teamspeak3            --- Installs Teamspeak3 on the server."
+    echo  "${0} rkhunter              --- Installs RKhunter hunter on the server."
+    echo  "${0} teamspeak             --- Installs Teamspeak3 on the server."
 
 }
 
@@ -139,6 +142,8 @@ do
             ;;
         "rootkit-hunter")     set -- "$@" "-r" 
             ;;
+        "lynis")              set -- "$@" "-c" 
+            ;;
         "logwatch")           set -- "$@" "-l" 
             ;;
         "fail2ban")           set -- "$@" "-f" 
@@ -152,7 +157,7 @@ do
     esac
 done
 
-while getopts tnhrfpl OPTIONS
+while getopts tnhrfplc OPTIONS
 do
     case "${OPTIONS}" in
     t)
@@ -162,6 +167,11 @@ do
     l)
         source "${SCRIPT_LOCATION}"/logwatch.sh
         install_logwatch
+        ;;
+
+    c)
+        source "${SCRIPT_LOCATION}"/lynis.sh
+        install_lynis
         ;;
     n)
         install_nagios

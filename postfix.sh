@@ -95,14 +95,28 @@ function install_postfix {
     if ! echo "${SETTINGS}" | grep 'smtp_sasl_tls_security_options = noanonymous' > /dev/null
         then
             echo 'smtp_sasl_tls_security_options = noanonymous' >> "${POSTFIX_SETTINGS}"main.cf
-           log "[i] Adding entry to  ${POSTFIX_SETTINGS}main.cf" 'g'
+            log "[i] Adding entry to  ${POSTFIX_SETTINGS}main.cf" 'g'
     fi
 
     if ! echo "${SETTINGS}" | grep 'smtp_sasl_auth_enable = yes' > /dev/null
         then
             echo 'smtp_sasl_auth_enable = yes' >> "${POSTFIX_SETTINGS}"main.cf
-           log "[i] Adding entry to  ${POSTFIX_SETTINGS}main.cf" 'g'
+            log "[i] Adding entry to  ${POSTFIX_SETTINGS}main.cf" 'g'
     fi
+
+    # Set alias
+    log '[i] Checking if an alias is a lready set for root.' 'g'
+
+    if grep -q "^root" /etc/aliases 
+        then
+            log '[w] An entry was found, overwriting.' 'w'
+            sed -i "s/root:.*/root:\ ${EMAIL}/" /etc/aliases
+        else
+            log '[i] No entry was found, creating.' 'g'
+            echo "root: ${EMAIL}" >> /etc/aliases
+    fi
+    newaliases
+
 
     
     # Starting Postfix
