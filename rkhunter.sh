@@ -4,4 +4,4 @@
 /usr/local/bin/rkhunter --update
 /usr/local/bin/rkhunter --cronjob --report-warnings-only 
 
-MAILTO=root
+MAILTO=root1
