@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 function install_logwatch {
     # Check if postfix is  installed.
     if ! yum list --installed | grep postfix > /dev/null
@@ -51,12 +52,7 @@ function install_logwatch {
             log 'Setting up email address' 'g'
     fi
 
-<<<<<<< HEAD
-
-    log '[i] Logwatch was installed started.' 'g'
-=======
     log '[i] Logwatch was installed.' 'g'
->>>>>>> fa02fbae8651ee61ef4be1f2ec37a3138d68dc88
     logwatch
     log '[i] I have sent a test email, please check if it was received.' 'g'
 }

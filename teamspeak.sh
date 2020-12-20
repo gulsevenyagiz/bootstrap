@@ -42,6 +42,7 @@ function install_teamspeak {
     fi
 
     # Add ports to firewalld.
+    systemctl stop firewalld
     log '[i] Adding necessary ports to firewalld.' 'g'
     firewall-cmd --permanent --zone=public --add-port=9987/udp >/dev/null 2>&1
     firewall-cmd --permanent --zone=public --add-port=30033/tcp >/dev/null 2>&1

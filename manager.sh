@@ -140,7 +140,7 @@ do
             ;;
         "harden")             set -- "$@" "-h" 
             ;;
-        "rootkit-hunter")     set -- "$@" "-r" 
+        "rkhunter")           set -- "$@" "-r" 
             ;;
         "lynis")              set -- "$@" "-c" 
             ;;
@@ -180,7 +180,8 @@ do
         harden
         ;;
     r)
-        install_rootkit
+        source "${SCRIPT_LOCATION}"/rootkithunter.sh
+        install_rkhunter
         ;;
     f)
         source "${SCRIPT_LOCATION}"/fail2ban.sh
