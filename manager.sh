@@ -19,7 +19,7 @@ readonly SCRIPT_LOCATION="$(pwd)"
 #
 # TEAMSPEAK 3 PATHS
 #
-export readonly TEAMSPEAK_URL='https://files.teamspeak-services.com/releases/server/3.13.2/teamspeak3-server_linux_amd64-3.13.2.tar.bz2'
+export readonly TEAMSPEAK_URL='https://files.teamspeak-services.com/releases/server/3.13.3/teamspeak3-server_linux_amd64-3.13.2.tar.bz2'
 export readonly TEAMSPEAK_STATE='/var/local/teamspeak3/'
 export readonly TEAMSPEAK_FOLDER_NAME='/teamspeak3-server_linux_amd64/'
 #
