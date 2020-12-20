@@ -52,14 +52,6 @@ function install_logwatch {
     fi
 
 
-    # Setting up crontab
-    log '[i] Setting up crontab' 'g'
-    crontab -l > logwatch
-    echo "* * * * * $(which logwatch)" >> logwatch
-    crontab logwatch
-    rm logwatch
-
-
     log '[i] Logwatch was installed started.' 'g'
     logwatch
     log '[i] I have sent a test email, please check if it was received.' 'g'
