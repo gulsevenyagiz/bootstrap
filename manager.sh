@@ -134,7 +134,7 @@ for arg in "${@}"
 do
     shift
     case "${arg}" in
-        "teamspeak3")         set -- "$@" "-t"
+        "teamspeak")         set -- "$@" "-t"
             ;;
         "nagios")             set -- "$@" "-n" 
             ;;

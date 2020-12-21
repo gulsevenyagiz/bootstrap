@@ -118,6 +118,15 @@ function install_postfix {
     newaliases
 
 
+    log '[i] Adding smtp  to firewalld.' 'g'
+    systemctl stop firewalld
+    firewall-cmd --permanent --add-service=smtp >/dev/null 2>&1
+
+    if ! systemctl restart firewalld
+        then
+            log '[!!!] Failed to bring firewalld up, please manually check firewalld and restart the script.' 'r'
+            exit 1
+    fi
     
     # Starting Postfix
     log '[i] Starting postfix' 'g'
